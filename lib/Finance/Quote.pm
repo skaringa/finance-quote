@@ -36,7 +36,7 @@ use Carp;
 use Finance::Quote::UserAgent;
 use HTTP::Request::Common;
 use Encode;
-use Data::Dumper;
+# use Data::Dumper;
 
 use vars qw/@ISA @EXPORT @EXPORT_OK @EXPORT_TAGS
             $TIMEOUT %MODULES %METHODS $AUTOLOAD
@@ -173,14 +173,14 @@ sub new {
   if (!@reqmodules or $reqmodules[0] eq "-defaults") {
     shift(@reqmodules) if (@reqmodules);
     # Default modules
-    @modules = qw/AEX AIAHK ASEGR ASX BMONesbittBurns BSERO Bourso Cdnfundlibrary
-            Currencies Deka DWS FTPortfolios Fidelity FinanceCanada Fool HU
-            GoldMoney HEX
-            IndiaMutual LeRevenu ManInvestments Morningstar MorningstarJP MtGox NZX Platinum SEB
-            SIXfunds SIXshares StockHouseCanada TSP TSX Tdefunds Tdwaterhouse Tiaacref Troweprice
-            Trustnet Union USFedBonds VWD ZA Cominvest Finanzpartner
-            Yahoo::Asia Yahoo::Australia Yahoo::Brasil Yahoo::Europe Yahoo::NZ
-            Yahoo::USA/; }
+    @modules = qw/AEX AIAHK ASEGR ASX BMONesbittBurns BSERO Bourso
+            Cdnfundlibrary Citywire Currencies Deka DWS FTPortfolios Fidelity
+            FinanceCanada Fool FTfunds HU GoldMoney HEX IndiaMutual LeRevenu
+            ManInvestments Morningstar MorningstarJP MStaruk MtGox NZX Platinum
+            SEB SIXfunds SIXshares StockHouseCanada TSP TSX Tdefunds
+            Tdwaterhouse Tiaacref TNetuk Troweprice Trustnet Union USFedBonds
+            VWD ZA Cominvest Finanzpartner Yahoo::Asia Yahoo::Australia
+            Yahoo::Brasil Yahoo::Europe Yahoo::NZ Yahoo::USA/; }
 
   $this->_load_modules(@modules,@reqmodules);
 
@@ -643,6 +643,29 @@ sub parse_csv
            | ,
        }gx;
        push(@new, undef) if substr($text, -1,1) eq ',';
+
+       return @new;      # list of values that were comma-separated
+}
+
+# =======================================================================
+# parse_csv_semicolon (public object method)
+#
+# Grabbed from the Perl Cookbook. Parsing csv isn't as simple as you thought!
+#
+sub parse_csv_semicolon
+{
+    shift if (ref $_[0]); # Shift off the object if we have one.
+    my $text = shift;      # record containing comma-separated values
+    my @new  = ();
+
+    push(@new, $+) while $text =~ m{
+        # the first part groups the phrase inside the quotes.
+        # see explanation of this pattern in MRE
+        "([^\"\\]*(?:\\.[^\"\\]*)*)";?
+           |  ([^;]+);?
+           | ;
+       }gx;
+       push(@new, undef) if substr($text, -1,1) eq ';';
 
        return @new;      # list of values that were comma-separated
 }
