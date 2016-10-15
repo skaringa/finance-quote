@@ -1,5 +1,19 @@
 {{$NEXT}}
 
+1.38      2015-08-22 13:22:56+02:00 Europe/Brussels
+        * module updates: tiaacref, yahooJSON, FTfunds, MStaruk, USFedBonds, GoldMoney
+        * new modules: fidelityfixed (Peter Ratzlaff), yahooYQL
+        * removed modules: MTGox
+        * more tests: yahoo_speed.t, tiaacref.t
+
+1.37      2015-02-01 20:24:32+01:00 Europe/Brussels
+        * modified 00-use.t to show more info
+        * Remove Crypt::SSLeay dependency in favor of LWP::Protocol::https (Geert Janssens)
+        * Updated HU.pm and test file to current website (Kristof Marussy)
+
+1.36      2015-01-31
+        * MorningstarJP : changed dependency from Date::Calc to DateTime
+
 1.35      2014-06-17 08:06:14+02:00 Europe/Brussels
         * BUGFIX: VWD - currency returned.
 

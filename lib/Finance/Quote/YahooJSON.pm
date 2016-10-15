@@ -37,6 +37,15 @@ use Time::Piece;
 
 my $YIND_URL_HEAD = 'http://finance.yahoo.com/webservice/v1/symbols/';
 my $YIND_URL_TAIL = '/quote?format=json';
+my %suffix_to_currency = (
+    NS => 'INR',
+    CL => 'INR',
+    BO => 'INR',
+    BR => 'EUR',
+    PA => 'EUR',
+    BC => 'EUR',
+    MC => 'EUR',
+);
 
 sub methods {
     return ( yahoo_json => \&yahoo_json,
@@ -96,7 +105,6 @@ sub yahoo_json {
 
             }
             else {
-
                 my $json_resources = $json_data->{'list'}{'resources'}[0];
                 my $json_response_type =
                     $json_resources->{'resource'}{classname};
@@ -116,6 +124,8 @@ sub yahoo_json {
                     $json_resources->{'resource'}{'fields'}{'price'};
                 my $json_utctime =
                     $json_resources->{'resource'}{'fields'}{'utctime'};
+                my $json_currency =
+                    $json_resources->{'resource'}{'fields'}{'currency'};
 
                 $info{ $stocks, "success" } = 1;
                 $info{ $stocks, "exchange" } =
@@ -126,6 +136,15 @@ sub yahoo_json {
                 $info{ $stocks, "last" }   = $json_price;
                 $info{ $stocks, "volume" }   = $json_volume;
                 $info{ $stocks, "isodate" } = ( $json_utctime =~ /dddd-dd-dd/ );
+                if (defined $json_currency and length $json_currency) {
+                    $info{ $stocks, "currency" } = $json_currency;
+                } else {
+                    if ($stocks =~ /\.([^.]+)$/ ) { # find suffix
+                        if (exists $suffix_to_currency{$1}) {
+                            $info{ $stocks, "currency" } = $suffix_to_currency{$1};
+                        }
+                    }
+                }
 
                 $my_date = localtime($json_timestamp)->strftime('%d.%m.%Y %T');
                 if ( $json_utctime =~ /(\d\d\d\d)-(\d\d)-(\d\d)/ ) {
@@ -178,7 +197,7 @@ This module provides the "yahoo_json" fetch method.
 =head1 LABELS RETURNED
 
 The following labels may be returned by Finance::Quote::YahooJSON :
-name, last, isodate, volume, method, exchange.
+name, last, isodate, volume, method, exchange, currency.
 
 =head1 SEE ALSO
 

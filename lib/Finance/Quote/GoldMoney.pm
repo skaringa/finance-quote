@@ -28,10 +28,9 @@
 
 package Finance::Quote::GoldMoney;
 require 5.005;
-require Crypt::SSLeay;
 
 use HTTP::Request::Common;
-use HTML::TableExtract;
+use JSON;
 
 use strict;
 use warnings;
@@ -39,11 +38,11 @@ use warnings;
 # VERSION
 
 sub methods {
-	return(goldmoney => \&goldmoney);
+    return ( goldmoney => \&goldmoney );
 }
 
 sub labels {
-	return(goldmoney => [qw/exchange name date isodate price method/]);
+    return ( goldmoney => [qw/exchange name date isodate price method/] );
 }
 
 # goldmoney($quoter, @symbols)
@@ -52,175 +51,162 @@ sub labels {
 # - error out properly (that is: ignore) all other symbols
 #
 sub goldmoney {
-	my $quoter = shift;
-	my @symbols = @_;
-	return unless @symbols;
+    my $quoter  = shift;
+    my @symbols = @_;
+    return unless @symbols;
 
-	my $ua = $quoter->user_agent;
-	my (%symbolhash, @q, %info);
-	my (
-		$html_string, $te, $table_gold, $table_silver, $table_platinum,
-		$gold_gg, $gold_oz, $silver_oz, $platinum_oz, $platinum_pg, $currency
-	);
+    my $ua = $quoter->user_agent;
 
-	my $_want_gold = 0;
-	my $_want_silver = 0;
-	my $_want_platinum = 0;
+    # Set the ua to be blank. GoldMOney are using CloudFlare who block
+    # the default useragent.
+    $ua->agent('');
+    my ( %symbolhash, @q, %info );
+    my ( $html_string,    $te,          $table_gold, $table_silver,
+         $table_platinum, $gold_gg,     $gold_oz,    $silver_oz,
+         $platinum_oz,    $platinum_pg, $currency
+    );
 
-	# - feed all requested symbols into %info (to be returned later)
-	# - set error state to false by default
-	# - see if a gold or silver rate is requested
-	foreach my $s (@symbols) {
-		$info{$s,'success'}  = 0;
-		$info{$s,'exchange'} = 'goldmoney.com';
-		$info{$s,'method'}   = 'goldmoney';
-		$info{$s,'symbol'}   = $s;
+    my $_want_gold     = 0;
+    my $_want_silver   = 0;
+    my $_want_platinum = 0;
 
-		if($s eq 'gold') {
-			$_want_gold = 1;
-		} elsif($s eq 'silver') {
-			$_want_silver = 1;
-		} elsif($s eq 'platinum') {
-			$_want_platinum = 1;
-		} else {
-			$info{$s,'errormsg'} = "No data returned (note: this module only works for 'gold' and 'silver')";
-		}
-	}
+    # - feed all requested symbols into %info (to be returned later)
+    # - set error state to false by default
+    # - see if a gold or silver rate is requested
+    foreach my $s (@symbols) {
+        $info{ $s, 'success' }  = 0;
+        $info{ $s, 'exchange' } = 'goldmoney.com';
+        $info{ $s, 'method' }   = 'goldmoney';
+        $info{ $s, 'symbol' }   = $s;
 
-	# get the page
-	# - but only if we want either gold, silver or platinum (there is nothing else there)
-	if( $_want_gold or $_want_silver or $_want_platinum) {
-		my $GOLDMONEY_URL = "http://goldmoney.com";
-		my $response = $ua->request(GET $GOLDMONEY_URL);
+        if ( $s eq 'gold' ) {
+            $_want_gold = 1;
+        }
+        elsif ( $s eq 'silver' ) {
+            $_want_silver = 1;
+        }
+        elsif ( $s eq 'platinum' ) {
+            $_want_platinum = 1;
+        }
+        else {
+            $info{ $s, 'errormsg' } =
+                "No data returned (note: this module only works for 'gold' and 'silver')";
+        }
+    }
 
-		if ($response->is_success) {
-			$html_string =$response->content;
+    # get the JSON of the prices. Currently getting sell price,
+    if ( $_want_gold or $_want_silver or $_want_platinum ) {
 
-			# we want the 'Current Spot Rates' table
-			$te = new HTML::TableExtract->new( attribs=>{class=>'spot'}, subtables=>1);
-			$te->parse($html_string);
-			$table_gold=$te->table(3,0);
-			$table_silver=$te->table(3,1);
-			$table_platinum=$te->table(3,2);
-		} else {
-			# retrieval error - flag an error and return right away
-			foreach my $s (@symbols) {
-				%info = _goldmoney_error(@symbols, 'HTTP error: ' . $response->status_line);
-				return wantarray() ? %info : \%info;
-			}
-			return wantarray() ? %info : \%info;
-		}
+        my $currency = $quoter->{"currency"} || 'EUR';
+        my $GOLDMONEY_URL =
+            "http://www.goldmoney.com/metal/prices/currentSpotPrices?currency="
+            . lc($currency)
+            . "&units=grams&price=bid";
+        my $response = $ua->request( GET $GOLDMONEY_URL);
 
-		# get list of currencies
-		# FIXME:
-		# - assume euro since the site change in 01/2009
-		# - currency is JavaScript()ed since then and therefore hard to parse, if you
-		#   know how please tell me
-		# - this assumption causes trouble when the module is used outside the
-		#   european region (F::Q considers every number it gets as EUR and converts it...)
-		$currency = 'EUR';
+        if ( $response->is_success ) {
+            $html_string = $response->content;
 
-		# get gold rate
-		#
-		if( $_want_gold ) {
-			$_ = $table_gold->cell(0,0);
-			if( /(\d*\.\d*).*\/gg/ ) {
-				$gold_gg = $1;
-			}
+            my $json = from_json($html_string);
 
-			$_ = $table_gold->cell(0,0);
-			if( /(\d*\.\d*).*\/oz/ ) {
-				$gold_oz = $1;
+            $table_gold     = $json->{spotPrices}[0];
+            $table_silver   = $json->{spotPrices}[1];
+            $table_platinum = $json->{spotPrices}[2];
+        }
+        else {
+            # retrieval error - flag an error and return right away
+            foreach my $s (@symbols) {
+                %info = _goldmoney_error( @symbols,
+                                      'HTTP error: ' . $response->status_line );
+                return wantarray() ? %info : \%info;
+            }
+            return wantarray() ? %info : \%info;
+        }
 
-				# assemble final dataset
-				# - take "now" as date/time as the site is always current and does
-				#   not provide this explicitly - so there is a time-slip
-				$quoter->store_date(\%info, 'gold', {isodate => _goldmoney_time('isodate')});
-				$info{'gold','time'}     = _goldmoney_time('time');
-				$info{'gold','name'}     = 'Gold Spot';
-				$info{'gold','last'}     = $gold_oz;
-				$info{'gold','price'}    = $gold_oz;
-				$info{'gold','price_gg'} = $gold_gg;
-				$info{'gold','currency'} = $currency;
-				$info{'gold','success'}  = 1;
-			}
-		}
+        # get gold rate
+        #
+        if ($_want_gold) {
 
-		# get silver rate
-		#
-		if( $_want_silver ) {
-			$_ = $table_silver->cell(0,0);
-			if( /(\d*\.\d*).*\/oz/ ) {
-				$silver_oz = $1;
+            # assemble final dataset
+            # - take "now" as date/time as the site is always current and does
+            #   not provide this explicitly - so there is a time-slip
+            $quoter->store_date( \%info, 'gold',
+                                 { isodate => _goldmoney_time('isodate') } );
 
-				$quoter->store_date(\%info, 'silver', {isodate => _goldmoney_time('isodate')});
-				$info{'silver','time'}     = _goldmoney_time('time');
-				$info{'silver','name'}     = 'Silver Spot';
-				$info{'silver','last'}     = $silver_oz;
-				$info{'silver','price'}    = $silver_oz;
-				$info{'silver','currency'} = $currency;
-				$info{'silver','success'}  = 1;
-			}
-		}
+            $info{ 'gold', 'time' }     = _goldmoney_time('time');
+            $info{ 'gold', 'name' }     = 'Gold Spot';
+            $info{ 'gold', 'last' }     = $table_gold->{spotPrice};
+            $info{ 'gold', 'price' }    = $table_gold->{spotPrice};
+            $info{ 'gold', 'currency' } = $currency;
+            $info{ 'gold', 'success' }  = 1;
+        }
 
-		# get platinum rate
-		#
-		if( $_want_platinum ) {
-			$_ = $table_platinum->cell(0,0);
-			if( /(\d*\.\d*).*\/pg/ ) {
-				$platinum_pg = $1;
-			}
+        # get silver rate
+        #
+        if ($_want_silver) {
 
-			$_ = $table_platinum->cell(0,0);
-			if( /(\d*\.\d*).*\/oz/ ) {
-				$platinum_oz = $1;
+            $quoter->store_date( \%info, 'silver',
+                                 { isodate => _goldmoney_time('isodate') } );
+            $info{ 'silver', 'time' }     = _goldmoney_time('time');
+            $info{ 'silver', 'name' }     = 'Silver Spot';
+            $info{ 'silver', 'last' }     = $table_silver->{spotPrice};
+            $info{ 'silver', 'price' }    = $table_silver->{spotPrice};
+            $info{ 'silver', 'currency' } = $currency;
+            $info{ 'silver', 'success' }  = 1;
 
-				# assemble final dataset
-				# - take "now" as date/time as the site is always current and does
-				#   not provide this explicitly - so there is a time-slip
-				$quoter->store_date(\%info, 'platinum', {isodate => _goldmoney_time('isodate')});
-				$info{'platinum','time'}     = _goldmoney_time('time');
-				$info{'platinum','name'}     = 'Platinum Spot';
-				$info{'platinum','last'}     = $platinum_oz;
-				$info{'platinum','price'}    = $platinum_oz;
-				$info{'platinum','price_pg'} = $platinum_pg;
-				$info{'platinum','currency'} = $currency;
-				$info{'platinum','success'}  = 1;
-			}
-		}
-	}
+        }
 
-	return wantarray() ? %info : \%info;
+        # get platinum rate
+        #
+        if ($_want_platinum) {
+
+            # assemble final dataset
+            # - take "now" as date/time as the site is always current and does
+            #   not provide this explicitly - so there is a time-slip
+            $quoter->store_date( \%info, 'platinum',
+                                 { isodate => _goldmoney_time('isodate') } );
+            $info{ 'platinum', 'time' }     = _goldmoney_time('time');
+            $info{ 'platinum', 'name' }     = 'Platinum Spot';
+            $info{ 'platinum', 'last' }     = $table_platinum->{spotPrice};
+            $info{ 'platinum', 'price' }    = $table_platinum->{spotPrice};
+            $info{ 'platinum', 'currency' } = $currency;
+            $info{ 'platinum', 'success' }  = 1;
+
+        }
+    }
+
+    return wantarray() ? %info : \%info;
 }
 
 # - populate %info with errormsg and status code set for all requested symbols
 # - return a hash ready to pass back to fetch()
 sub _goldmoney_error {
-	my @symbols = shift;
-	my $msg     = shift;
-	my %info;
+    my @symbols = shift;
+    my $msg     = shift;
+    my %info;
 
-	foreach my $s (@symbols) {
-		$info{$s, "success"}  = 0;
-		$info{$s, "errormsg"} = $msg;
-	}
+    foreach my $s (@symbols) {
+        $info{ $s, "success" }  = 0;
+        $info{ $s, "errormsg" } = $msg;
+    }
 
-	return(%info);
+    return (%info);
 }
 
 # - return current 'isodate' and 'time' string
 sub _goldmoney_time {
-	my $want = shift;
-	my @now = localtime();
-	my $str;
+    my $want = shift;
+    my @now  = localtime();
+    my $str;
 
-	if($want eq 'isodate') {
-		$str = sprintf('%4d-%02d-%02d', $now[5]+1900, $now[4]+1, $now[3]);
-	} elsif($want eq 'time') {
-		$str = sprintf('%02d:%02d:%02d', $now[2], $now[1], $now[0]);
-	}
+    if ( $want eq 'isodate' ) {
+        $str = sprintf( '%4d-%02d-%02d', $now[5] + 1900, $now[4] + 1, $now[3] );
+    }
+    elsif ( $want eq 'time' ) {
+        $str = sprintf( '%02d:%02d:%02d', $now[2], $now[1], $now[0] );
+    }
 
-	return($str);
+    return ($str);
 }
 
 1;
@@ -254,8 +240,7 @@ The following labels are returned by Finance::Quote::GoldMoney:
 	- exchange
 	- name
 	- date, time
-	- price (per ounce), price_gg (per goldgram, gold only),
-      price_pg (per platinumgram, platinum only)
+	- price (per gram),
     - currency
 
 =head1 SEE ALSO
