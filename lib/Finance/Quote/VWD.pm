@@ -102,7 +102,7 @@ sub vwd {
 
         my $request =
               "http://www.finanztreff.de/"
-            . "kurse_einzelkurs_suche.htn?suchbegriff="
+            . "fonds_einzelkurs_uebersicht.htn?i="
             . $fund;
         if ($logging) {
             print LOG "Request='$request'\n";
