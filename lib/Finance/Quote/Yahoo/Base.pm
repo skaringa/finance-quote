@@ -283,9 +283,11 @@ sub yahoo_request {
         # Having converted London prices to GBP above we
         # make upper-case and turn GBX to GBP.
 			  $info{$symbol,"currency"} =~ tr/a-z/A-Z/;
-                          # yahoo started to return GBX instead of GBP
-                          # somewhere arround 9 oct 2008.
-                          $info{$symbol,"currency"} =~ s/GBX/GBP/;
+			  # yahoo started to return GBX instead of GBP
+			  # somewhere arround 9 oct 2008.
+			  $info{$symbol,"currency"} =~ s/GBX/GBP/;
+				# MKM hack: Use USD if not available
+			  $info{$symbol,"currency"} =~ s/N\/A/USD/;
 #			  printf "Currency %s specified by Yahoo\n", $info{$symbol,"currency"};
 			} else {
 			  # Determine the currency from the exchange name.

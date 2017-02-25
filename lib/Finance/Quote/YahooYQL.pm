@@ -113,7 +113,12 @@ sub yahoo_yql {
                 $info{ $stocks, "type" }   = "Unsupported";
                 $info{ $stocks, "last" }   = $json_price;
                 $info{ $stocks, "volume" } = $json_volume;
-                $info{ $stocks, "currency" } = $json_currency;
+                if ($json_currency) {
+                  $info{ $stocks, "currency" } = $json_currency;
+                } else {
+                  # MKM hack
+                  $info{ $stocks, "currency" } = 'USD';
+                }
                 if (    $json_timestamp
                      && $json_timestamp =~ m|(\d+)/(\d+)/(\d+)| )
                 {
