@@ -132,7 +132,7 @@ sub finanzpartner
 							 });
 				    });
 
-			print "$stock $isin $wkn\n";
+			print ";;; $stock $isin $wkn\n";
 			if ($stock eq $isin || $stock eq $wkn) {
 				# got it
 				$info{$stock, "method"} = "finanzpartner";
@@ -148,6 +148,7 @@ sub finanzpartner
 			}
 		}
 	}
+
 	return wantarray ? %info : \%info;
 }
 
