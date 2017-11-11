@@ -36,20 +36,15 @@ use Carp;
 use Finance::Quote::UserAgent;
 use HTTP::Request::Common;
 use Encode;
+use JSON qw(decode_json);
 # use Data::Dumper;
 
 use vars qw/@ISA @EXPORT @EXPORT_OK @EXPORT_TAGS
             $TIMEOUT %MODULES %METHODS $AUTOLOAD
-            $YAHOO_CURRENCY_URL $USE_EXPERIMENTAL_UA/;
+            $FREE_CURRENCY_CONVERTER_URL $USE_EXPERIMENTAL_UA/;
 
-# Call on the Yahoo API:
-#  - "f=l1" should return a single value - the "Last Trade (Price Only)"
-#  - "s=" the value of s should be "<FROM><TO>=X"
-#         where <FROM> and <TO> are currencies
-# Excample: http://finance.yahoo.com/d/quotes.csv?f=l1&s=AUDGBP=X
-# Documentation can be found here:
-#     http://code.google.com/p/yahoo-finance-managed/wiki/csvQuotesDownload
-$YAHOO_CURRENCY_URL = "http://finance.yahoo.com/d/quotes.csv?e=.csv&f=l1&s=";
+# https://www.currencyconverterapi.com/docs
+$FREE_CURRENCY_CONVERTER_URL = "https://free.currencyconverterapi.com/api/v4/convert?compact=ultra&q=";
 
 @ISA    = qw/Exporter/;
 @EXPORT = ();
@@ -247,13 +242,17 @@ sub currency {
 
   my $ua = $this->user_agent;
 
-  # The response should be a single value (the exchange rate)
-  my $data = $ua->request(GET "${YAHOO_CURRENCY_URL}${from}${to}=X")->content;
-  my $exchange_rate = $data;
+  my $reply = $ua->request(GET "${FREE_CURRENCY_CONVERTER_URL}${from}_${to}");
+  my $code = $reply->code;
+  my $desc = HTTP::Status::status_message($code);
+  return undef unless ($code == 200);
 
-  $exchange_rate =~ s/,// ; # solve a bug when conversion rate
-                            # involves thousands. yahoo inserts
-                            # a comma when thousands occur
+  my $body = $reply->content;
+  my $json_data = JSON::decode_json($body);
+  if (! $json_data) {
+    return undef;
+  }
+  my $exchange_rate = $json_data->{"${from}_${to}"};
 
   {
     local $^W = 0;  # Avoid undef warnings.
