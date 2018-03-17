@@ -76,7 +76,7 @@ sub finanzpartner
 			my $volume;
 			my $volumeCurrency;
 
-			my $parser = Web::Query->new_from_html($response->content);
+			my $parser = Web::Query->new_from_html($response->decoded_content);
 			my $cols = $parser->find('.row');
 
 			$cols->each(sub {
@@ -88,6 +88,7 @@ sub finanzpartner
 					    $cells->each(sub {
 								 my ($i, $elem) = @_;
 								 my $text = trim($elem->text);
+
 								 if ($text eq 'Wertpapierkennziffer:') {
 									 $wkn = trim($elem->next->text);
 								 } elsif ($text eq 'ISIN:') {
