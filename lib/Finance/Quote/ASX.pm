@@ -32,6 +32,7 @@
 require 5.005;
 
 use strict;
+use warnings;
 
 package Finance::Quote::ASX;
 
@@ -40,16 +41,21 @@ use LWP::UserAgent;
 use HTML::TableExtract;
 use Encode;
 
-use vars qw/$ASX_URL /;
+use vars qw/$ASX_URL @ASX_SEC_CODES/;
 
 # VERSION
 
 $ASX_URL = 'http://www.asx.com.au/asx/markets/priceLookup.do?by=asxCodes&asxCodes=';
 
+# These are the ASX codes starting with X that are securities not indexes
+#  and thus need currency AUD returned
+# See http://www.asx.com.au/asx/research/listedCompanies.do
+@ASX_SEC_CODES = (qw/XAM XIP XRO XPD XPE XF1 XRF XST XTD XTE XTV/);
+
 sub methods {return (australia => \&asx,asx => \&asx)}
 
 {
-	my @labels = qw/name last p_change bid offer high low volume
+	my @labels = qw/last net p_change bid offer high low volume
 	                price method exchange/;
 
 	sub labels { return (australia => \@labels,
@@ -86,8 +92,8 @@ sub asx {
 
 		my $te = HTML::TableExtract->new(
 			automap => 0,
-			headers => ["Code", "Last", '\+/-', "Bid", "Offer",
-		            "Open", "High", "Low", "Vol"]);
+			headers => ["Code", "Last", '\+/-', "% Chg", "Bid",
+			    "Offer", "Open", "High", "Low", "Volume"]);
 
 		$te->parse(decode('utf-8',$response->content));
 
@@ -117,7 +123,7 @@ sub asx {
 
 			$info{$stock,'symbol'} = $stock;
 
-			foreach my $label (qw/last p_change bid offer open
+			foreach my $label (qw/last net p_change bid offer open
 				      high low volume/) {
 				$info{$stock,$label} = shift(@$row);
 
@@ -125,6 +131,9 @@ sub asx {
 				$info{$stock,$label} =~ tr/ \200-\377//d
 					unless ($label eq "name");
 			}
+
+			# get rid of trailing whitespace after 'last'
+			$info{$stock,'last'} =~ s/\s//g;
 
 			# If that stock does not exist, it will have a empty
 			# string for all the fields.  The "last" price should
@@ -150,25 +159,20 @@ sub asx {
 				}
 			}
 
-			# We get a dollar plus/minus change, rather than a
-			# percentage change, so we convert this into a
-			# percentage change, as required.  We should never have
-			# zero opening price, but if we do warn about it.
-
-			if ($info{$stock,"open"} == 0) {
-				warn "Zero opening price in p_change calcuation for ".
-				     "stock $stock.  P_change set to zero.";
-				$info{$stock,"p_change"} = 0;
-			} else {
-				$info{$stock,"p_change"} = sprintf("%.2f",
-			                           ($info{$stock,"p_change"}*100)/
-					             $info{$stock,"open"});
-			}
+			# Remove trailing percentage sign from p_change
+			$info{$stock,"p_change"} =~ tr/%//d;
 
 			# Australian indexes all begin with X, so don't tag them
 			# as having currency info.
 
 			$info{$stock, "currency"} = "AUD" unless ($stock =~ /^X/);
+
+			# There are some companies starting with X, so DO tag
+			#  them with currency AUD
+
+			if ( grep( /^$stock$/, @ASX_SEC_CODES ) ) {
+				$info{$stock, "currency"} = "AUD";
+			}
 
 			$info{$stock, "method"} = "asx";
 			$info{$stock, "exchange"} = "Australian Stock Exchange";
@@ -221,7 +225,7 @@ Stock Exchange's terms and conditions.
 =head1 LABELS RETURNED
 
 The following labels may be returned by Finance::Quote::ASX:
-date, bid, ask, open, high, low, last, close, p_change, volume,
+bid, offer, open, high, low, last, net, p_change, volume,
 and price.
 
 =head1 SEE ALSO
