@@ -37,22 +37,22 @@ sub methods { return ( fondsweb => \&fondsweb ); }
 }
 
 sub fondsweb {
-	
+
 	my $quoter = shift;
 	my @symbols  = @_;
 	my $te = HTML::TableExtract->new( depth => 0, count => 6 );
 	my $tree = HTML::TreeBuilder::XPath->new;
 	my %info;
-	
+
 	# Iterate over each symbol
 	foreach my $symbol (@symbols) {
 		my $url = $FONDSWEB_URL . $symbol;
-		#~ debug_ua( $quoter->user_agent );	
-		
+		#~ debug_ua( $quoter->user_agent );
+
 		# The site check the user agent
 		$quoter->user_agent->agent("Mozilla/5.0 (X11; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0");
 		my $reply = $quoter->user_agent->request(GET $url);
-		
+
 		# Check response
 		unless ($reply->is_success) {
 			$info{ $symbol, "success" } = 0;
@@ -60,22 +60,23 @@ sub fondsweb {
 		} else {
 			# Parse the HTML tree
 			$tree->parse( $reply->decoded_content );
-			
+
 			# Find data using xpath
 			# name
 			my $name = $tree->findvalue( '//h1[@class="fw--h1 fw--fondsModule-head-content-headline"]');
 			$info{ $symbol, 'name' } = $name;
-			
+			$info{ $symbol, 'symbol' } = $name;
+
 			# isin
 			my $isin_raw = $tree->findvalue( '//span[@class="text_bold"]');
 			my @isin = $isin_raw =~ m/^(\w\w\d+)\w./;
-			$info{ $symbol, 'isin' } = $isin[0];			
-			
+			$info{ $symbol, 'isin' } = $isin[0];
+
 			# date, isodate
 			my $raw_date = $tree->findvalue( '//i[@data-key="nav"]/..' );
 			my @date = $raw_date =~ m/.(\d\d)\.(\d\d)\.(\d\d\d\d)./;
-			$quoter->store_date(\%info, $symbol, {eurodate => "$date[0]/$date[1]/$date[2]"} );			
-			
+			$quoter->store_date(\%info, $symbol, {eurodate => "$date[0]/$date[1]/$date[2]"} );
+
 			# year_range, in this case use table extract
 			$te->parse($reply->decoded_content);
 			# the 6th table
@@ -83,17 +84,20 @@ sub fondsweb {
 			my $lastRowIndex = @{$details->rows} - 1;
 			# extract data with re
 			my @highest = $details->cell($lastRowIndex - 1, 1) =~ m/^(\d+,\d+)\s.+/;
-			my @lowest = $details->cell($lastRowIndex, 1) =~ m/^(\d+,\d+)\s.+/;			
+			my @lowest = $details->cell($lastRowIndex, 1) =~ m/^(\d+,\d+)\s.+/;
 			$info{ $symbol, "year_range" } = join('', @highest) . " - " . join('', @lowest);
-			
+
 			# nav, last, currency
 			my $raw_nav_currency = $tree->findvalue( '//div[@class="fw--fondDetail-price"]' );
 			my @nav_currency = $raw_nav_currency =~ m/^(\d+,\d+)\s(\w+)/;
+			for (@nav_currency) {
+				s/,/./;
+			}
 			$info{ $symbol, 'nav' } = $nav_currency[0];
 			$info{ $symbol, 'last' } = $nav_currency[0];
 			$info{ $symbol, 'currency' } = $nav_currency[1];
-			
-			# Other metadata					
+
+			# Other metadata
 			$info{ $symbol, 'source' } = 'Finance::Quote::Fondsweb';
 			$info{ $symbol, 'method' } = 'fondsweb';
 			$info{ $symbol, "type" } = "fund";
@@ -132,7 +136,7 @@ Information returned by this module is governed by Fondsweb
 
 =head1 FUND SYMBOLS
 
-Use the ISIN number 
+Use the ISIN number
 
 e.g. For L<https://www.fondsweb.com/de/LU0804734787>,
 one would supply LU0804734787 as the symbol argument on the fetch API call.
