@@ -180,7 +180,7 @@ sub new {
 
   $this->_load_modules(@modules,@reqmodules);
 
-  $this->{TIMEOUT} = $TIMEOUT if defined($TIMEOUT);
+  $this->{TIMEOUT} = $TIMEOUT if defined($TIMEOUT) or 60;
   $this->{FAILOVER} = 1;
   $this->{REQUIRED} = [];
 
