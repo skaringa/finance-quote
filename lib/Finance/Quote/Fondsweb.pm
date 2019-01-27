@@ -95,6 +95,7 @@ sub fondsweb {
 			}
 			$info{ $symbol, 'nav' } = $nav_currency[0];
 			$info{ $symbol, 'last' } = $nav_currency[0];
+			$info{ $symbol, 'price' } = $nav_currency[0];
 			$info{ $symbol, 'currency' } = $nav_currency[1];
 
 			# Other metadata
