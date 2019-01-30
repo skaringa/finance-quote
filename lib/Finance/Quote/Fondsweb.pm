@@ -40,9 +40,13 @@ sub fondsweb {
 
 	my $quoter = shift;
 	my @symbols  = @_;
-	my $te = HTML::TableExtract->new( depth => 0, count => 6 );
-	my $tree = HTML::TreeBuilder::XPath->new;
 	my %info;
+
+	# LOGGING - set to 1 to enable log file
+	my $logging = 0;
+	if ($logging) {
+			open( LOG, ">>/tmp/fondsweb.log" );
+	}
 
 	# Iterate over each symbol
 	foreach my $symbol (@symbols) {
@@ -59,13 +63,16 @@ sub fondsweb {
 			$info{ $symbol, "errmsg" } = join ' ', $reply->code, $reply->message;
 		} else {
 			# Parse the HTML tree
+			my $te = HTML::TableExtract->new( depth => 0, count => 6 );
+			my $tree = HTML::TreeBuilder::XPath->new;
+
 			$tree->parse( $reply->decoded_content );
 
 			# Find data using xpath
 			# name
 			my $name = $tree->findvalue( '//h1[@class="fw--h1 fw--fondsModule-head-content-headline"]');
 			$info{ $symbol, 'name' } = $name;
-			$info{ $symbol, 'symbol' } = $name;
+			$info{ $symbol, 'symbol' } = $symbol;
 
 			# isin
 			my $isin_raw = $tree->findvalue( '//span[@class="text_bold"]');
@@ -85,7 +92,7 @@ sub fondsweb {
 			# extract data with re
 			my @highest = $details->cell($lastRowIndex - 1, 1) =~ m/^(\d+,\d+)\s.+/;
 			my @lowest = $details->cell($lastRowIndex, 1) =~ m/^(\d+,\d+)\s.+/;
-			$info{ $symbol, "year_range" } = join('', @highest) . " - " . join('', @lowest);
+			#$info{ $symbol, "year_range" } = join('', @highest) . " - " . join('', @lowest);
 
 			# nav, last, currency
 			my $raw_nav_currency = $tree->findvalue( '//div[@class="fw--fondDetail-price"]' );
@@ -103,9 +110,24 @@ sub fondsweb {
 			$info{ $symbol, 'method' } = 'fondsweb';
 			$info{ $symbol, "type" } = "fund";
 			$info{ $symbol,	"success" } = 1;
+
+			# log
+			if ($logging) {
+					print LOG join( ':',
+													$info{ $symbol, "name" },
+													$info{ $symbol, "symbol" },
+													$info{ $symbol, "date" },
+													$info{ $symbol, "time" },
+													$info{ $symbol, "price" },
+													$info{ $symbol, "currency" } );
+					print LOG "\n";
+			}
 		}
 	}
 
+	if ($logging) {
+			close LOG;
+	}
 	return wantarray ? %info : \%info;
 }
 
