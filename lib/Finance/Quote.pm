@@ -41,10 +41,12 @@ use JSON qw(decode_json);
 
 use vars qw/@ISA @EXPORT @EXPORT_OK @EXPORT_TAGS
             $TIMEOUT %MODULES %METHODS $AUTOLOAD
-            $FREE_CURRENCY_CONVERTER_URL $USE_EXPERIMENTAL_UA/;
+            $FREE_CURRENCY_CONVERTER_URL $USE_EXPERIMENTAL_UA
+            $FREE_CURRENCY_CONVERTER_API_KEY/;
 
 # https://www.currencyconverterapi.com/docs
-$FREE_CURRENCY_CONVERTER_URL = "https://free.currencyconverterapi.com/api/v4/convert?compact=ultra&q=";
+$FREE_CURRENCY_CONVERTER_URL = "https://free.currencyconverterapi.com/api/v6/convert?compact=ultra&q=";
+$FREE_CURRENCY_CONVERTER_API_KEY = ${ENV{FREE_CURRENCY_CONVERTER_API_KEY}};
 
 @ISA    = qw/Exporter/;
 @EXPORT = ();
@@ -242,7 +244,7 @@ sub currency {
 
   my $ua = $this->user_agent;
 
-  my $reply = $ua->request(GET "${FREE_CURRENCY_CONVERTER_URL}${from}_${to}");
+  my $reply = $ua->request(GET "${FREE_CURRENCY_CONVERTER_URL}${from}_${to}&apiKey=${FREE_CURRENCY_CONVERTER_API_KEY}");
   my $code = $reply->code;
   my $desc = HTTP::Status::status_message($code);
   return undef unless ($code == 200);
