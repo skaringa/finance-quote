@@ -43,9 +43,9 @@ sub fondsweb {
 	my %info;
 
 	# LOGGING - set to 1 to enable log file
-	my $logging = 0;
+	my $logging = 1;
 	if ($logging) {
-			open( LOG, ">>/tmp/fondsweb.log" );
+			open( LOG, ">/tmp/fondsweb.log" );
 	}
 
 	# Iterate over each symbol
@@ -54,13 +54,18 @@ sub fondsweb {
 		#~ debug_ua( $quoter->user_agent );
 
 		# The site check the user agent
-		$quoter->user_agent->agent("Mozilla/5.0 (X11; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0");
+		print LOG "GET $url\n";
+		flush LOG;
+
+		$quoter->user_agent->timeout(10);
+		$quoter->user_agent->agent("Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0");
 		my $reply = $quoter->user_agent->request(GET $url);
 
 		# Check response
 		unless ($reply->is_success) {
 			$info{ $symbol, "success" } = 0;
 			$info{ $symbol, "errmsg" } = join ' ', $reply->code, $reply->message;
+			print LOG join(':', $url, $reply->code, $reply->message, "\n");
 		} else {
 			# Parse the HTML tree
 			my $te = HTML::TableExtract->new( depth => 0, count => 6 );
@@ -88,11 +93,13 @@ sub fondsweb {
 			$te->parse($reply->decoded_content);
 			# the 6th table
 			my $details = $te->table(0, 6);
-			my $lastRowIndex = @{$details->rows} - 1;
-			# extract data with re
-			my @highest = $details->cell($lastRowIndex - 1, 1) =~ m/^(\d+,\d+)\s.+/;
-			my @lowest = $details->cell($lastRowIndex, 1) =~ m/^(\d+,\d+)\s.+/;
-			#$info{ $symbol, "year_range" } = join('', @highest) . " - " . join('', @lowest);
+			if ($details) {
+				my $lastRowIndex = @{$details->rows} - 1;
+				# extract data with re
+				my @highest = $details->cell($lastRowIndex - 1, 1) =~ m/^(\d+,\d+)\s.+/;
+				my @lowest = $details->cell($lastRowIndex, 1) =~ m/^(\d+,\d+)\s.+/;
+				#$info{ $symbol, "year_range" } = join('', @highest) . " - " . join('', @lowest);
+			}
 
 			# nav, last, currency
 			my $raw_nav_currency = $tree->findvalue( '//div[@class="fw--fondDetail-price"]' );
@@ -117,11 +124,12 @@ sub fondsweb {
 													$info{ $symbol, "name" },
 													$info{ $symbol, "symbol" },
 													$info{ $symbol, "date" },
-													$info{ $symbol, "time" },
 													$info{ $symbol, "price" },
 													$info{ $symbol, "currency" } );
 					print LOG "\n";
 			}
+
+			sleep 2;
 		}
 	}
 
